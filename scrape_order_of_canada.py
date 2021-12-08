@@ -29,20 +29,8 @@ while(i <= 2):
     # Obtain information from tag <table>
     table1 = soup.find('table')
 
-    # Obtain every title of columns with tag <th>
-    headers = []
-
-    headers.append('name')              # headers[0]
-    headers.append('location')          # headers[1]
-    headers.append('honour')            # headers[2]
-    headers.append('membership')        # headers[3]
-    headers.append('awarded_date')      # headers[4]
-    headers.append('invested_date')     # headers[5]
-    headers.append('full_name')            # headers[6]
-    headers.append('bio')               # headers[8]
-    headers.append('detail_url')        # headers[9]
-
-    print(headers)
+    # CSV headers
+    headers = ["name", "location", "honour", "membership", "awarded_date", "invested_date", "full_name", "bio", "detail_url"]
 
     # Create a dataframe
     mydata = pd.DataFrame(columns = headers)
@@ -50,7 +38,7 @@ while(i <= 2):
     # Create a for loop to fill mydata
     for j in table1.find_all('tr')[1:]:
         
-        # List Detail
+        # Get information from List html page
         row_data = j.find_all('td')
         
         try:
@@ -66,7 +54,7 @@ while(i <= 2):
         except:
             honour = 'Possible Error'        
 
-        # More Detail
+        # Get information from Detail html page
         more_info_url = row_data[0].contents[1].attrs['href']
         url2 = base_url+more_info_url
         page2 = requests.get(url2)
