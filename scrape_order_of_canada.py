@@ -5,27 +5,31 @@ import pandas as pd
 from datetime import datetime
 
 dirname = os.path.dirname(__file__)
-log_file = os.path.join(dirname, 'logfile_' + datetime.now().strftime("%Y%m%dt%H%M%S") + '.txt')
-output_name = "test_" + datetime.now().strftime("%Y%m%dt%H%M%S") + '.csv'
+log_file_path = os.path.join(dirname, 'logfile_' + datetime.now().strftime("%Y%m%dt%H%M%S") + '.txt')
+
+log_file = open(log_file_path, "w")
+log_file.close()
+
+output_name = "order_of_canada_" + datetime.now().strftime("%Y%m%dt%H%M%S") + '.csv'
 
 # Create an URL object
 all_url = 'https://www.gg.ca/en/honours/recipients?f%5B0%5D=honour_type_id%3A%22146%22'# Create object page
 base_url = 'https://www.gg.ca'
 
 # CSV headers
-headers = ["id", "name", "location", "honour", "level", "awarded_date", "invested_date", "full_name", "bio", "status", "detail_url"]
+headers = ["id", "name", "location", "honour", "award_level", "awarded_date", "invested_date", "full_name", "bio", "status", "detail_url"]
 
 # Create a dataframe
 mydata = pd.DataFrame(columns = headers)
 
-def get_data(mydata, award_type="members", search_url = all_url, num_pages=2):
+def get_data(mydata, award_type="members", search_url=all_url, start_page=0, end_page=2):
 
     
-    i = 1
-    while(i <= num_pages):
+    i = start_page
+    while(i < end_page):
 
         if i == 0:
-            page = requests.get(search_url).encoding
+            page = requests.get(search_url)
         else:
             page = requests.get(search_url+'&page='+str(i))
 
@@ -39,28 +43,50 @@ def get_data(mydata, award_type="members", search_url = all_url, num_pages=2):
         table1 = soup.find('table')
         #table1 = soup.table
         
+        try:
+            table_loop = table1.find_all('tr')[1:]
+        except:
+            log_file = open(log_file_path, "a")
+            log_file.write( "Table Loop failed: i="+str(i)+ "\n")
+            log_file.close()
 
         # Create a for loop to fill mydata
-        for j in table1.find_all('tr')[1:]:
-            
+        for j in table_loop:
+
+            # blank the valuesppython
+            uid = ""
+            name = ""
+            location = ""
+            honour = ""
+            award_level = ""
+            awarded_date = ""
+            invested_date = ""
+            full_name = ""
+            biography = ""
+            status = ""
+            detail_url = ""
+
             # Get information from List html page
             row_data = j.find_all('td')
             
             name = row_data[0]
             if name is not None:
-                name = row_data[0].text.strip()
+                name = row_data[0].get_text().strip()
             else:
                 name = 'Possible Error'
+
+            if name == "Georges-Henri Denys Arcand":
+                name = "Georges-Henri Denys Arcand"
             
             location = row_data[1]
             if location is not None:
-                location = row_data[1].text.strip()
+                location = row_data[1].get_text().strip()
             else:
                 location = 'Possible Error'
             
             honour = row_data[2]
             if honour is not None:
-                honour = row_data[2].text.strip()
+                honour = row_data[2].get_text().strip()
             else:
                 honour = 'Possible Error'        
 
@@ -69,84 +95,68 @@ def get_data(mydata, award_type="members", search_url = all_url, num_pages=2):
             # Real URL
             url2 = base_url+more_info_url
             # Test a particular case URL
-            #url2 = "https://www.gg.ca/en/honours/recipients/146-14809"
+            #url2 = "https://www.gg.ca/en/honours/recipients/146-5105"
+            #url2 = "https://www.gg.ca/en/honours/recipients/146-96"
             
             page2 = requests.get(url2)
             soup2 = BeautifulSoup(page2.text, 'lxml')
 
             # Check how many awards the person has and select the appropriate one
-            num_levels = len(soup2.find_all('h3'))
+            award_groups = soup2.find("div", class_="view-grouping-content").ul
+            li = award_groups.find_all("li", recursive=False)
+            num_awards = len(li)
 
-            # There is multiple awards
-            # Find Officer Awards
-            if(award_type == "officers"):
-                # Check if person has more than one award
-                if num_levels > 1:
-                    for award in soup2.find_all('h3'):
-                        if award.text.strip() == 'Officer of the Order of Canada':
-                            level = award.text.strip()
-                            parent_tag = award
-                # There is only one award
-                else:
-                    parent_tag = soup2.h3
-                    if parent_tag is not None:
-                        level = parent_tag.text.strip()
+            for item in li:
+                if award_type == "members":
+                    if item.h3.get_text().strip().find('Member of the Order of Canada') > -1:
+                        award_level = item.h3.get_text().strip()                            
                     else:
-                        level = "Possible error"
+                        continue
 
-            # Find Companions Awards
-            if(award_type == "companions"):
-                # Check if person has more than one award
-                if num_levels > 1:
-                    for award in soup2.find_all('h3'):
-                        if award.text.strip() == 'Companion of the Order of Canada':
-                            level = award.text.strip()
-                            parent_tag = award
-                # There is only one award
-                else:
-                    parent_tag = soup2.h3
-                    if parent_tag is not None:
-                        level = parent_tag.text.strip()
+                if award_type == "officers":
+                    if item.h3.get_text().strip().find('Officer of the Order of Canada') > -1:
+                        award_level = item.h3.get_text().strip()                            
                     else:
-                        level = "Possible error"
+                        continue
 
-            # Find Companions Awards
-            if(award_type == "members"):
-                # Check if person has more than one award
-                if num_levels > 1:
-                    for award in soup2.find_all('h3'):
-                        if award.text.strip() == 'Member of the Order of Canada':
-                            level = award.text.strip()
-                            parent_tag = award                            
-                # There is only one award
-                else:
-                    parent_tag = soup2.h3
-                    if parent_tag is not None:
-                        level = parent_tag.text.strip()
+                if award_type == "companions":
+                    if item.h3.get_text().strip().find('Companion of the Order of Canada') > -1:
+                        award_level = item.h3.get_text().strip()                            
                     else:
-                        level = "Possible error"
+                        continue                    
+                
+                dates = item.find_all("li")
+                for date in dates:
+                    if date.get_text().strip().find("Awarded on: ") > -1:
+                        awarded_date = " ".join(date.get_text().strip().split()).replace("Awarded on: ","")
+                    if date.get_text().strip().find("Invested on: ") > -1:
+                        invested_date = " ".join(date.get_text().strip().split()).replace("Invested on: ","")
+            
+                biography_element = item.p
+                if biography_element is not None:
+                    biography = biography_element.get_text().strip()
+                else:
+                    biography = ""    
 
-            awarded_date_element = parent_tag.findNext('li')
-            if awarded_date_element.text.strip().find("Awarded on: ") > -1:
-                awarded_date = " ".join(awarded_date_element.text.strip().split()).replace("Awarded on: ","")
-            else:
-                awarded_date = "Possible error"
+            # Check if there is no invested date
+            try:
+                if invested_date is None:
+                    invested_date = ""
+            except:
+                invested_date = ""
 
-            invested_date_element = awarded_date_element.findNext('li')
-            if invested_date_element.text.strip().find("Invested on: ") > -1:
-                invested_date = " ".join(invested_date_element.text.strip().split()).replace("Invested on: ","")
-            else:
-                invested_date = "Possible error"            
+            # Check if there is no biography
+            try:
+                if biography is None:
+                    biography = ""
+            except:
+                biography = ""
 
-            biography_element = invested_date_element.findNext('p')
-            if biography_element is not None:
-                biography = biography_element.text.strip()
-            else:
-                biography = "Possible error"     
+
 
             full_name = soup2.find(id="page-title")
             if full_name is not None:
-                full_name = soup2.find(id="page-title").text.strip()
+                full_name = soup2.find(id="page-title").get_text().strip()
             else:
                 full_name = 'Possible Error'
 
@@ -160,10 +170,11 @@ def get_data(mydata, award_type="members", search_url = all_url, num_pages=2):
             
             detail_url = url2
 
-            row = [uid, name, location, honour, level, awarded_date, invested_date, full_name, biography, status, detail_url]
+            row = [uid, name, location, honour, award_level, awarded_date, invested_date, full_name, biography, status, detail_url]
 
             length = len(mydata)
             mydata.loc[length] = row
+
 
         i = i+1
 
@@ -175,15 +186,26 @@ officer_url = "https://www.gg.ca/en/honours/recipients?f%5B0%5D=honour_type_id%3
 companion_url = "https://www.gg.ca/en/honours/recipients?f%5B0%5D=honour_type_id%3A%22146%22&f%5B1%5D=honour_level_id%3A%22147%22"
 
 # Real number of pages
-total_num_pages_member = 195
-total_num_pages_officer = 99
-total_num_pages_companion = 20
+total_num_pages_member = 199
+total_num_pages_officer = 101
+total_num_pages_companion = 21
+
+# Total Members = 4973
+# Total Officers = 2523
+# Total Companions = 517
+
+# Get Members
+#mydata = get_data(mydata,"members",member_url,0,total_num_pages_member)
+# Get Officers
+#mydata = get_data(mydata,"officers",officer_url,0,total_num_pages_officer)
+# Get Companions
+mydata = get_data(mydata,"companions",companion_url,19,total_num_pages_companion)
 
 # Get Members
 #mydata = get_data(mydata,"members",member_url,2)
 # Get Officers
-mydata = get_data(mydata,"officers",officer_url,2)
+#mydata = get_data(mydata,"officers",officer_url,2)
 # Get Companions
-mydata = get_data(mydata,"companions",companion_url,2)
+#mydata = get_data(mydata,"companions",companion_url,2)
     
 mydata.to_csv(os.path.join(dirname, output_name), index=False)
